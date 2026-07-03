@@ -126,3 +126,6 @@ InitTestScene*.unity*
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code local tool config (로컬 전용, 프로젝트 자체와 무관)
+.claude/
