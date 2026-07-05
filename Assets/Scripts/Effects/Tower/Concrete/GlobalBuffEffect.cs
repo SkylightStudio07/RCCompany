@@ -1,4 +1,5 @@
 using RCCom.Data;
+using RCCom.Definitions.Tower;
 using RCCom.Effects.Tower;
 using RCCom.Runtime;
 using UnityEngine;
@@ -25,10 +26,29 @@ namespace RCCom.Effects.Tower.Concrete
         }
 
         /// <summary>
-        /// 업그레이드 카드(축적된 힘, upgradeIncrement)로 값이 늘어날 수 있으므로 bonus를
-        /// 불변이 아닌 가변 필드로 둔다. 카드 시스템 구현 시 이 인스턴스를 찾아 bonus를 더해준다
-        /// (현재는 등록만 하고, 카드 연동은 이후 업그레이드 카드 시스템 단계에서 처리).
+        /// 업그레이드 카드(축적된 힘)가 호출: 이미 지어진 파워 타워들이 등록해둔 오라의 실제
+        /// 기여치를 늘리고(즉시 반영), 앞으로 새로 지어질 파워 타워도 늘어난 값으로 시작하도록
+        /// Definition 쪽 기본값도 함께 늘린다.
         /// </summary>
+        public static void IncreaseAllGlobalBonuses(TowerRoster roster, float amount)
+        {
+            foreach (ITowerAura aura in GlobalTowerAuraRegistry.Auras)
+            {
+                if (aura is GlobalDamageAura globalAura)
+                {
+                    globalAura.bonus += amount;
+                }
+            }
+
+            foreach (TowerDefinition definition in roster.towers)
+            {
+                if (definition.Data is PowerTowerData data)
+                {
+                    data.globalDamageBonus += amount;
+                }
+            }
+        }
+
         private class GlobalDamageAura : ITowerAura
         {
             public float bonus;

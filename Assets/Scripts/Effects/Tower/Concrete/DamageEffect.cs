@@ -1,6 +1,7 @@
 using RCCom.Core;
 using RCCom.Data;
 using RCCom.Effects.Tower;
+using RCCom.Managers;
 using RCCom.Runtime;
 using UnityEngine;
 
@@ -8,11 +9,13 @@ namespace RCCom.Effects.Tower.Concrete
 {
     /// <summary>
     /// 공격 타워 기본 효과: 사거리 내 가장 가까운 적에게 주기적으로 데미지를 입힌다.
-    /// 투사체 등 시각 표현은 여기서 다루지 않는다 (렌더러 프리팹/매니저 단계에서 별도 처리).
+    /// 명중 시 짧은 라인 이펙트(AttackFlash)만 띄우고, 그 외 투사체 시각 표현은 다루지 않는다.
     /// </summary>
     [CreateAssetMenu(menuName = "RCCom/Tower/Effects/Damage Effect")]
     public class DamageEffect : TowerEffectBase
     {
+        [SerializeField] private GameObject attackFlashPrefab;
+
         public override void OnTick(TowerContext ctx)
         {
             if (ctx.self.Data is not AttackTowerData data)
@@ -32,42 +35,15 @@ namespace RCCom.Effects.Tower.Concrete
                 return;
             }
 
-            target.TakeDamage(CalculateDamage(ctx.self, data.damage));
-            ctx.self.cooldownRemaining = CalculateAttackInterval(ctx.self, data.attackInterval);
-        }
+            target.TakeDamage(TowerDamageMath.CalculateDamage(ctx.self, data.damage));
+            AttackFlash.Spawn(attackFlashPrefab, ctx.self.Position, target.position);
 
-        private static float CalculateDamage(TowerInstance self, float baseDamage)
-        {
-            float damage = baseDamage;
-
-            foreach (ITowerAura aura in self.activeAuras)
+            if (SoundManager.Instance != null)
             {
-                damage = aura.ModifyOutgoingDamage(damage);
+                SoundManager.Instance.PlayTowerAttack(ctx.self.Position);
             }
 
-            foreach (ITowerAura aura in GlobalTowerAuraRegistry.Auras)
-            {
-                damage = aura.ModifyOutgoingDamage(damage);
-            }
-
-            return damage;
-        }
-
-        private static float CalculateAttackInterval(TowerInstance self, float baseInterval)
-        {
-            float interval = baseInterval;
-
-            foreach (ITowerAura aura in self.activeAuras)
-            {
-                interval = aura.ModifyAttackInterval(interval);
-            }
-
-            foreach (ITowerAura aura in GlobalTowerAuraRegistry.Auras)
-            {
-                interval = aura.ModifyAttackInterval(interval);
-            }
-
-            return interval;
+            ctx.self.cooldownRemaining = TowerDamageMath.CalculateAttackInterval(ctx.self, data.attackInterval);
         }
     }
 }

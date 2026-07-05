@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 361d732bc82f0c14fb2a6e2bb2a47267, type: 3}
+  m_Name: UnlockSkillVulnerable
+  m_EditorClassIdentifier: Assembly-CSharp::RCCom.Effects.Card.Concrete.UnlockTowerCard
+  displayName: "\uCDE8\uC57D \uC624\uB77C \uD574\uAE08"
+  description: "\uC2E0\uADDC \uC2A4\uD0AC \uD0C0\uC6CC: \uC0AC\uAC70\uB9AC \uB0B4
+    \uC801\uC758 \uBC1B\uB294 \uD53C\uD574 \uC99D\uAC00"
+  category: 1
+  unlockDefinition: {fileID: 11400000, guid: bc6ba8028af4ffb4bb258eccbd9330ef, type: 2}

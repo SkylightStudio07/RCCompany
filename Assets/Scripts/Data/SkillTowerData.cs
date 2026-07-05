@@ -12,6 +12,8 @@ namespace RCCom.Data
         public float damageBuffMultiplier;
         public float attackSpeedBuffMultiplier;
 
+        public override float DisplayRange => buffRange;
+
         public SkillTowerData()
         {
             kind = TowerKind.Skill;

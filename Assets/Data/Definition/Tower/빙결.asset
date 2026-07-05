@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1980c88c53d7349438396aed9ffbabbf, type: 3}
+  m_Name: "\uBE59\uACB0"
+  m_EditorClassIdentifier: Assembly-CSharp::RCCom.Definitions.Tower.SkillTowerDefinition
+  effects:
+  - {fileID: 11400000, guid: e5447215c678aaf45b85dcd2fec79f60, type: 2}
+  sprite: {fileID: 1950386598938341738, guid: d3c811ef5f0ecf04fac00271a1f5372a, type: 3}
+  data:
+    towerId: 3
+    displayName: "\uAC10\uC18D \uC624\uB77C"
+    kind: 1
+    buildCost: 100
+    buffRange: 5
+    damageBuffMultiplier: 1.5
+    attackSpeedBuffMultiplier: 0

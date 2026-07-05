@@ -12,6 +12,8 @@ namespace RCCom.Data
         public float attackRange;
         public float attackInterval;
 
+        public override float DisplayRange => attackRange;
+
         public AttackTowerData()
         {
             kind = TowerKind.Attack;

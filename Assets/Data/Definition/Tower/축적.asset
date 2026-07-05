@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3daabcc36df02784788cf997c2c49e59, type: 3}
+  m_Name: "\uCD95\uC801"
+  m_EditorClassIdentifier: Assembly-CSharp::RCCom.Definitions.Tower.PowerTowerDefinition
+  effects:
+  - {fileID: 11400000, guid: 0ef803708d828b6438b85635ca38b8ca, type: 2}
+  sprite: {fileID: 4217594957977486414, guid: a6df9f304cf6a0d469d81c7585dad8ab, type: 3}
+  data:
+    towerId: 9
+    displayName: "\uC804\uC5ED\uAC15\uD654"
+    kind: 2
+    buildCost: 250
+    globalDamageBonus: 1.05
+    upgradeIncrement: 0

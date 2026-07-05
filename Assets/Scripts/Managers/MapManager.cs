@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RCCom.Data;
+using RCCom.Definitions.Tower;
 using RCCom.Runtime;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -20,6 +21,9 @@ namespace RCCom.Managers
         [Header("타워 설치 그리드 (슬롯이 칠해진 타일맵 레이어)")]
         [SerializeField] private Tilemap slotTilemap;
 
+        [Header("공용 타워 프리팹 (종류별로 따로 안 두고 1개 재사용, Build(definition)으로 종류 주입)")]
+        [SerializeField] private TowerInstance towerPrefab;
+
         [Header("적 이동 경로 (그리드 무관, 자유 좌표 — 씬에 배치한 오브젝트 순서대로)")]
         [SerializeField] private Transform[] waypoints;
 
@@ -34,6 +38,11 @@ namespace RCCom.Managers
         private int _powerTowerCount;
 
         private Vector2[] _waypointPositions;
+
+        /// <summary>HUD의 슬롯 텍스트 3종이 참조 — 종류별 "남은" 설치 가능 수.</summary>
+        public int AttackSlotsRemaining => maxAttackTowers - _attackTowerCount;
+        public int SkillSlotsRemaining => maxSkillTowers - _skillTowerCount;
+        public int PowerSlotsRemaining => maxPowerTowers - _powerTowerCount;
 
         /// <summary>
         /// 적 이동용 웨이포인트 목록 (스테이지당 고정이라 Awake에서 한 번만 캐싱).
@@ -57,6 +66,9 @@ namespace RCCom.Managers
             return slotTilemap.HasTile(cell);
         }
 
+        /// <summary>설치 프리뷰(커서 따라다니는 스프라이트)가 셀 중심 좌표를 필요로 해서 공개.</summary>
+        public Vector3 GetCellCenterWorld(Vector3Int cell) => slotTilemap.GetCellCenterWorld(cell);
+
         public bool CanBuild(TowerKind kind, Vector3Int cell)
         {
             if (!slotTilemap.HasTile(cell) || _occupiedSlots.ContainsKey(cell))
@@ -74,16 +86,18 @@ namespace RCCom.Managers
         }
 
         /// <summary>
-        /// prefab을 슬롯 셀 중심 위치에 건설한다. 호출 전 CanBuild로 가능 여부를 확인해야 한다
-        /// (여기서는 재확인하지 않음 — 예: 타워 설치 UI가 버튼 활성/비활성을 CanBuild로 미리 걸러야 함).
+        /// 공용 타워 프리팹을 슬롯 셀 중심 위치에 건설하고 definition을 주입한다. 호출 전
+        /// CanBuild로 가능 여부를 확인해야 한다 (여기서는 재확인하지 않음 — 예: 타워 설치 UI가
+        /// 버튼 활성/비활성을 CanBuild로 미리 걸러야 함).
         /// </summary>
-        public TowerInstance Build(TowerInstance prefab, Vector3Int cell)
+        public TowerInstance Build(TowerDefinition definition, Vector3Int cell)
         {
             Vector3 worldPosition = slotTilemap.GetCellCenterWorld(cell);
-            TowerInstance instance = Instantiate(prefab, worldPosition, Quaternion.identity);
+            TowerInstance instance = Instantiate(towerPrefab, worldPosition, Quaternion.identity);
+            instance.Build(definition);
 
             _occupiedSlots[cell] = instance;
-            IncrementCount(instance.Data.kind);
+            IncrementCount(definition.Data.kind);
 
             return instance;
         }
@@ -105,6 +119,26 @@ namespace RCCom.Managers
             }
         }
 
+        /// <summary>해당 셀에 지어진 타워가 있으면 반환한다 (철거 기능용).</summary>
+        public bool TryGetTowerAt(Vector3Int cell, out TowerInstance instance) =>
+            _occupiedSlots.TryGetValue(cell, out instance);
+
+        /// <summary>
+        /// 해당 셀의 타워를 철거한다. 비용 확인/차감은 호출부(TowerBuildController)의 책임 —
+        /// 여기서는 슬롯/카운터 정리와 실제 파괴만 담당한다.
+        /// </summary>
+        public void RemoveTower(Vector3Int cell)
+        {
+            if (!_occupiedSlots.TryGetValue(cell, out TowerInstance instance))
+            {
+                return;
+            }
+
+            _occupiedSlots.Remove(cell);
+            DecrementCount(instance.Data.kind);
+            Destroy(instance.gameObject);
+        }
+
         private void IncrementCount(TowerKind kind)
         {
             switch (kind)
@@ -117,6 +151,22 @@ namespace RCCom.Managers
                     break;
                 case TowerKind.Power:
                     _powerTowerCount++;
+                    break;
+            }
+        }
+
+        private void DecrementCount(TowerKind kind)
+        {
+            switch (kind)
+            {
+                case TowerKind.Attack:
+                    _attackTowerCount--;
+                    break;
+                case TowerKind.Skill:
+                    _skillTowerCount--;
+                    break;
+                case TowerKind.Power:
+                    _powerTowerCount--;
                     break;
             }
         }

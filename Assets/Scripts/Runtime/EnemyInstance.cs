@@ -26,6 +26,23 @@ namespace RCCom.Runtime
         private int _pathIndex;
         private bool _isDead;
 
+        /// <summary>
+        /// 빙결 오라 타워(SlowAuraEffect) 등이 적용하는 이동속도 배율. 지속시간 기반으로
+        /// "사거리 안에 있는 동안 계속 갱신"되다가, 갱신이 끊기면(사거리 이탈) 자연히 만료된다
+        /// (Tower의 OnAllyEnterRange/OnAllyExitRange 같은 진입/이탈 훅이 적에게는 없어서
+        /// 이 방식으로 대체 — 매 프레임 OnTick에서 갱신되는 한 계속 유지됨).
+        /// </summary>
+        private float _speedMultiplier = 1f;
+        private float _speedMultiplierRemaining;
+
+        /// <summary>맹독 타워(PoisonDamageEffect)가 적용하는 지속피해(DoT). Slow와 동일한 갱신 방식.</summary>
+        private float _poisonDamagePerSecond;
+        private float _poisonRemaining;
+
+        /// <summary>취약 오라(VulnerableAuraEffect)가 적용하는 피해 배율. Slow와 동일한 갱신 방식.</summary>
+        private float _vulnerableMultiplier = 1f;
+        private float _vulnerableRemaining;
+
         public event Action<float> Damaged;
         public event Action Died;
 
@@ -36,6 +53,15 @@ namespace RCCom.Runtime
         public event Action ReachedGoal;
 
         public EnemyData Data => definition.data;
+
+        /// <summary>
+        /// 지금 향하고 있는 다음 웨이포인트 — EnemyView가 실제 이동 여부(프레임 간 위치 변화량)
+        /// 대신 "의도된 목적지" 기준으로 방향을 계산할 때 쓴다. 스폰 직후나 웨이포인트에 정확히
+        /// 스냅되는 프레임처럼 실이동량이 0에 가까운 순간에도 항상 올바른 방향을 주기 위함.
+        /// 경로가 없거나 이미 끝에 도달했으면 null.
+        /// </summary>
+        public Vector2? CurrentTargetWaypoint =>
+            _path != null && _pathIndex < _path.Count ? _path[_pathIndex] : (Vector2?)null;
 
         /// <summary>
         /// path: 이동할 웨이포인트 목록 (MapManager.Waypoints). goal: 경로 끝에 도달했을 때
@@ -57,12 +83,75 @@ namespace RCCom.Runtime
 
         public void Tick(float deltaTime)
         {
+            TickSpeedMultiplier(deltaTime);
+            TickPoison(deltaTime);
+            TickVulnerable(deltaTime);
             MoveAlongPath(deltaTime);
 
             EnemyContext ctx = MakeContext(deltaTime);
             foreach (IEnemyEffect effect in definition.effects)
             {
                 effect.OnTick(ctx);
+            }
+        }
+
+        /// <summary>사거리 내에 있는 동안 SlowAuraEffect가 매 틱 갱신 호출한다.</summary>
+        public void ApplySpeedMultiplier(float multiplier, float duration)
+        {
+            _speedMultiplier = multiplier;
+            _speedMultiplierRemaining = duration;
+        }
+
+        /// <summary>맹독 타워(PoisonDamageEffect)가 명중 시 호출 — 계속 맞으면 지속시간이 갱신된다.</summary>
+        public void ApplyPoison(float damagePerSecond, float duration)
+        {
+            _poisonDamagePerSecond = damagePerSecond;
+            _poisonRemaining = duration;
+        }
+
+        /// <summary>취약 오라(VulnerableAuraEffect)가 사거리 내에 있는 동안 매 틱 갱신 호출한다.</summary>
+        public void ApplyVulnerable(float damageTakenMultiplier, float duration)
+        {
+            _vulnerableMultiplier = damageTakenMultiplier;
+            _vulnerableRemaining = duration;
+        }
+
+        private void TickSpeedMultiplier(float deltaTime)
+        {
+            if (_speedMultiplierRemaining <= 0f)
+            {
+                return;
+            }
+
+            _speedMultiplierRemaining -= deltaTime;
+            if (_speedMultiplierRemaining <= 0f)
+            {
+                _speedMultiplier = 1f;
+            }
+        }
+
+        private void TickPoison(float deltaTime)
+        {
+            if (_poisonRemaining <= 0f)
+            {
+                return;
+            }
+
+            _poisonRemaining -= deltaTime;
+            TakeDamage(_poisonDamagePerSecond * deltaTime);
+        }
+
+        private void TickVulnerable(float deltaTime)
+        {
+            if (_vulnerableRemaining <= 0f)
+            {
+                return;
+            }
+
+            _vulnerableRemaining -= deltaTime;
+            if (_vulnerableRemaining <= 0f)
+            {
+                _vulnerableMultiplier = 1f;
             }
         }
 
@@ -75,7 +164,7 @@ namespace RCCom.Runtime
 
             Vector2 target = _path[_pathIndex];
             Vector2 toTarget = target - position;
-            float step = Data.moveSpeed * deltaTime;
+            float step = Data.moveSpeed * _speedMultiplier * deltaTime;
 
             if (toTarget.sqrMagnitude <= step * step)
             {
@@ -110,6 +199,7 @@ namespace RCCom.Runtime
                 return;
             }
 
+            amount *= _vulnerableMultiplier;
             currentHealth -= amount;
             Damaged?.Invoke(amount);
             Debug.Log($"[EnemyDebug] {Data.displayName} 피격 -{amount} (남은 체력 {currentHealth}/{Data.maxHealth})"); // TODO: 확인 끝나면 삭제
