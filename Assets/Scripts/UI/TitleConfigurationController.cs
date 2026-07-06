@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Collections.Generic;
+using RCCom.Managers;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,11 +9,10 @@ namespace RCCom.UI
 {
     public class TitleConfigurationController : MonoBehaviour
     {
-        private const string MasterVolumeKey = "Settings.MasterVolume";
-        private const string BgmVolumeKey = "Settings.BGMVolume";
-        private const string SfxVolumeKey = "Settings.SFXVolume";
         private const string ScreenModeKey = "Settings.ScreenMode";
         private const string VSyncKey = "Settings.VSync";
+        private const string ResolutionWidthKey = "Settings.ResolutionWidth";
+        private const string ResolutionHeightKey = "Settings.ResolutionHeight";
 
         private enum ScreenMode
         {
@@ -39,7 +40,9 @@ namespace RCCom.UI
         [SerializeField] private Vector2 configurationEnterOffset = new(90f, 0f);
         [SerializeField] private float scaleBump = 0.025f;
 
+        private readonly List<Vector2Int> availableResolutions = new();
         private ScreenMode pendingScreenMode;
+        private int pendingResolutionIndex;
         private bool pendingVSync;
         private bool initialized;
         private bool isConfigurationOpen;
@@ -132,20 +135,25 @@ namespace RCCom.UI
         {
             Initialize();
 
-            float masterVolume = masterVolumeSlider != null ? masterVolumeSlider.value : AudioListener.volume;
-            float bgmVolume = bgmVolumeSlider != null ? bgmVolumeSlider.value : PlayerPrefs.GetFloat(BgmVolumeKey, 1f);
-            float sfxVolume = sfxVolumeSlider != null ? sfxVolumeSlider.value : PlayerPrefs.GetFloat(SfxVolumeKey, 1f);
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.SaveVolumeSettings();
+            }
 
-            AudioListener.volume = masterVolume;
             QualitySettings.vSyncCount = pendingVSync ? 1 : 0;
-            Screen.fullScreenMode = pendingScreenMode == ScreenMode.Fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
-            Screen.fullScreen = pendingScreenMode == ScreenMode.Fullscreen;
 
-            PlayerPrefs.SetFloat(MasterVolumeKey, masterVolume);
-            PlayerPrefs.SetFloat(BgmVolumeKey, bgmVolume);
-            PlayerPrefs.SetFloat(SfxVolumeKey, sfxVolume);
+            // 해상도와 창모드는 반드시 Screen.SetResolution 한 번에 같이 넘겨야 함 — Screen.fullScreenMode만
+            // 따로 바꾸면 해상도가 그대로 남아 창모드 전환 시 화면이 어긋나는 경우가 있음(유니티 공식 권장 방식).
+            Vector2Int resolution = availableResolutions.Count > 0
+                ? availableResolutions[pendingResolutionIndex]
+                : new Vector2Int(Screen.width, Screen.height);
+            FullScreenMode fullScreenMode = pendingScreenMode == ScreenMode.Fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
+            Screen.SetResolution(resolution.x, resolution.y, fullScreenMode);
+
             PlayerPrefs.SetInt(ScreenModeKey, (int)pendingScreenMode);
             PlayerPrefs.SetInt(VSyncKey, pendingVSync ? 1 : 0);
+            PlayerPrefs.SetInt(ResolutionWidthKey, resolution.x);
+            PlayerPrefs.SetInt(ResolutionHeightKey, resolution.y);
             PlayerPrefs.Save();
 
             RefreshLabels();
@@ -173,29 +181,88 @@ namespace RCCom.UI
 
         public void PreviousResolution()
         {
+            if (availableResolutions.Count == 0)
+            {
+                return;
+            }
+
+            pendingResolutionIndex = Mathf.Max(0, pendingResolutionIndex - 1);
             RefreshLabels();
         }
 
         public void NextResolution()
         {
+            if (availableResolutions.Count == 0)
+            {
+                return;
+            }
+
+            pendingResolutionIndex = Mathf.Min(availableResolutions.Count - 1, pendingResolutionIndex + 1);
             RefreshLabels();
         }
 
         private void LoadSettings()
         {
-            float masterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, AudioListener.volume);
-            float bgmVolume = PlayerPrefs.GetFloat(BgmVolumeKey, 1f);
-            float sfxVolume = PlayerPrefs.GetFloat(SfxVolumeKey, 1f);
+            if (SoundManager.Instance != null)
+            {
+                SetSliderValue(masterVolumeSlider, SoundManager.Instance.MasterVolume);
+                SetSliderValue(bgmVolumeSlider, SoundManager.Instance.BgmVolume);
+                SetSliderValue(sfxVolumeSlider, SoundManager.Instance.SfxVolume);
 
-            SetSliderValue(masterVolumeSlider, masterVolume);
-            SetSliderValue(bgmVolumeSlider, bgmVolume);
-            SetSliderValue(sfxVolumeSlider, sfxVolume);
+                if (masterVolumeSlider != null)
+                {
+                    masterVolumeSlider.onValueChanged.AddListener(SoundManager.Instance.SetMasterVolume);
+                }
+
+                if (bgmVolumeSlider != null)
+                {
+                    bgmVolumeSlider.onValueChanged.AddListener(SoundManager.Instance.SetBgmVolume);
+                }
+
+                if (sfxVolumeSlider != null)
+                {
+                    sfxVolumeSlider.onValueChanged.AddListener(SoundManager.Instance.SetSfxVolume);
+                }
+            }
 
             pendingScreenMode = (ScreenMode)PlayerPrefs.GetInt(ScreenModeKey, Screen.fullScreen ? (int)ScreenMode.Fullscreen : (int)ScreenMode.Windowed);
             pendingVSync = PlayerPrefs.GetInt(VSyncKey, QualitySettings.vSyncCount > 0 ? 1 : 0) == 1;
 
-            AudioListener.volume = masterVolume;
+            BuildResolutionList();
+            int savedWidth = PlayerPrefs.GetInt(ResolutionWidthKey, Screen.width);
+            int savedHeight = PlayerPrefs.GetInt(ResolutionHeightKey, Screen.height);
+            pendingResolutionIndex = availableResolutions.FindIndex(r => r.x == savedWidth && r.y == savedHeight);
+            if (pendingResolutionIndex < 0)
+            {
+                // 저장된 해상도가 이 모니터의 지원 목록에 없으면(다른 모니터에서 저장된 값 등)
+                // 목록의 마지막(가장 높은 해상도, 보통 네이티브)으로 대체.
+                pendingResolutionIndex = availableResolutions.Count - 1;
+            }
+
             RefreshLabels();
+        }
+
+        /// <summary>
+        /// Screen.resolutions는 갱신주파수(refresh rate)별로 같은 해상도가 중복 등록돼있어,
+        /// 너비×높이 기준으로만 중복 제거한 목록을 만든다. 이미 오름차순으로 들어오므로 정렬은 불필요.
+        /// </summary>
+        private void BuildResolutionList()
+        {
+            availableResolutions.Clear();
+
+            foreach (Resolution resolution in Screen.resolutions)
+            {
+                Vector2Int size = new(resolution.width, resolution.height);
+                if (!availableResolutions.Contains(size))
+                {
+                    availableResolutions.Add(size);
+                }
+            }
+
+            if (availableResolutions.Count == 0)
+            {
+                availableResolutions.Add(new Vector2Int(Screen.width, Screen.height));
+            }
         }
 
         private void ToggleScreenMode()
@@ -219,7 +286,10 @@ namespace RCCom.UI
 
             if (resolutionText != null)
             {
-                resolutionText.text = $"{Screen.width} x {Screen.height}";
+                Vector2Int size = availableResolutions.Count > 0
+                    ? availableResolutions[pendingResolutionIndex]
+                    : new Vector2Int(Screen.width, Screen.height);
+                resolutionText.text = $"{size.x} x {size.y}";
             }
 
             if (vSyncText != null)

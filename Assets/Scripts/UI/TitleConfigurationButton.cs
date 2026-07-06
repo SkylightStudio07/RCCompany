@@ -1,3 +1,4 @@
+using RCCom.Managers;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -78,6 +79,11 @@ namespace RCCom.UI
             if (configurationController == null)
             {
                 return;
+            }
+
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlaySettingsButtonClick();
             }
 
             switch (action)

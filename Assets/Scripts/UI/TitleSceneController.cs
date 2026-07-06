@@ -1,4 +1,5 @@
 using System.Collections;
+using RCCom.Managers;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -194,6 +195,11 @@ namespace RCCom.UI
             {
                 Debug.LogWarning("TitleSceneController needs TitleBackground and MainMenuBackground references.", this);
                 return;
+            }
+
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlayTitleClick();
             }
 
             isAnimating = true;

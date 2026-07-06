@@ -992,6 +992,7 @@ Retry는 Editor Play 재시작과 달리 도메인 리로드가 없어(`SceneMan
 - 타이틀 씬용 클립 3종 추가: `titleClickClip`/`mainMenuClickClip`/`settingsButtonClickClip` (+ 각각 `PlayTitleClick()`/`PlayMainMenuClick()`/`PlaySettingsButtonClick()`). 기존 게임플레이용 `buttonClickClip`/`PlayButtonClick()`은 그대로 유지(게임오버/튜토리얼 버튼 전용).
 - 배경 앰비언스(바람소리 등) 지원: `ambienceSource`/`ambienceClip` — `Start()`에서 루프 재생 시작, BGM 믹서 그룹 공유(전용 슬라이더가 없어서 BGM 볼륨에 같이 묶임 — 필요하면 나중에 전용 그룹/슬라이더로 분리 가능).
 - `UI/AudioSettingsUI.cs`(신규): Configuration 화면의 슬라이더 3개를 `SoundManager`의 볼륨 프로퍼티/메서드에 연결. `Apply` 버튼 클릭 시 클릭음 재생 + `SaveVolumeSettings()` 호출.
+- 타이틀씬 클릭음 배선 완료: `TitleSceneController.BeginTransition()`(타이틀 화면 첫 클릭/입력) → `PlayTitleClick()`, `TitleMenuTextButton.InvokeAction()`(새 게임/설정/뒤로가기 등 메인 메뉴 버튼) → `PlayMainMenuClick()`, `TitleConfigurationButton.Invoke()`(해상도/화면모드/VSync/Apply/Back 등 설정 화면 버튼) → `PlaySettingsButtonClick()`. 전부 `SoundManager.Instance != null` 가드 후 호출 — 씬에 SoundManager가 아직 없어도(또는 파괴된 뒤) NRE 없이 조용히 무시됨.
 
 ### 씬 세팅 필요
 - **AudioMixer 에셋 생성**: Project 창 → `Create → Audio Mixer` (이름 예: `MainMixer`). 믹서 창 열어서 `BGM`/`SFX` 그룹 2개를 Master의 자식으로 생성. 각 그룹 선택 → Volume 슬라이더 우클릭 → `Expose "Volume (of OOO)" to script` → 하단 `Exposed Parameters`에서 이름을 각각 `MasterVolume`(Master 그룹 것)/`BGMVolume`/`SFXVolume`으로 정확히 변경(코드의 상수 문자열과 일치해야 함).
@@ -999,7 +1000,46 @@ Retry는 Editor Play 재시작과 달리 도메인 리로드가 없어(`SceneMan
 - **게임 씬**: 기존 필드(Tower/Player Attack Clip 등) 그대로 두고, 새 필드는 필요 없으면 비워둠.
 - **타이틀 씬**: 새 `SoundManager` 오브젝트 생성 → `Title Click Clip`/`Main Menu Click Clip`/`Settings Button Click Clip`/`Ambience Source`(새 AudioSource)+`Ambience Clip`(바람소리)/`Bgm Source`+`Bgm Playlist`(타이틀 BGM) 채우기. `Player`나 게임플레이 전용 클립은 비워둘 것.
 - **Configuration 화면**: 빈 오브젝트에 `AudioSettingsUI` 부착 → `Master/Bgm/Sfx Volume Slider` 3개 + `Apply Button` 연결. 슬라이더의 `Min/Max Value`는 0~1로 맞출 것.
-- 타이틀/메인메뉴 버튼들의 `OnClick()`에서 `SoundManager.Instance.PlayTitleClick()`/`PlayMainMenuClick()`를 직접 호출하도록 연결(각 버튼 스크립트에서 코드로 호출하거나, UnityEvent로 인스펙터에서 연결 가능한 위치가 있다면 그쪽 활용).
+- ~~타이틀/메인메뉴 버튼들의 `OnClick()`에서 `SoundManager.Instance.PlayTitleClick()`/`PlayMainMenuClick()`를 직접 호출하도록 연결~~ → 코드 배선 완료 (`TitleSceneController`/`TitleMenuTextButton`/`TitleConfigurationButton`), 남은 건 각 클립 에셋 채우기뿐.
+
+---
+
+## 볼륨 슬라이더가 BGM/SFX에 반영 안 되던 버그 수정 (2026-07-06)
+{{user}} 발견: Configurator에서 슬라이더를 내려도 BGM이 작아지지 않음.
+
+### 원인
+실제 Configuration 화면(해상도/화면모드/VSync까지 함께 관리)은 우리 `AudioSettingsUI`가 아니라 별도로 작성된 `TitleConfigurationController`가 담당하고 있었음 — 이 스크립트가 자기만의 볼륨 처리를 갖고 있었는데, `Apply()`에서 Master는 `AudioListener.volume`(유니티 전역 출력 스칼라)에 반영해 그나마 효과가 있었지만, BGM/SFX는 자체 PlayerPrefs 키(`Settings.BGMVolume` 등, `SoundManager`의 `Audio_BgmVolume`과는 별개)에 값만 저장하고 실제로 어디에도 적용하지 않았음 — `SoundManager`/`AudioMixer`를 전혀 호출하지 않는 완전히 분리된 반쪽짜리 병렬 시스템이었음.
+
+### 수정
+- `TitleConfigurationController`의 슬라이더 초기화/적용 로직을 `SoundManager`에 완전히 위임하도록 교체: `LoadSettings()`에서 `SoundManager.Instance.MasterVolume`/`BgmVolume`/`SfxVolume`로 슬라이더 초기값을 채우고, 각 슬라이더의 `onValueChanged`를 `SoundManager.Instance.SetMasterVolume`/`SetBgmVolume`/`SetSfxVolume`에 직접 연결(드래그 즉시 실시간 미리듣기). `Apply()`는 이제 `SoundManager.Instance.SaveVolumeSettings()`만 호출 — 화면모드/VSync는 기존 그대로 자체 PlayerPrefs 유지(오디오와 무관한 설정이라 그대로 둠).
+- `AudioListener.volume` 조작과 자체 오디오 PlayerPrefs 키(`Settings.MasterVolume` 등) 전부 제거.
+- **`AudioSettingsUI.cs` 삭제**: `TitleConfigurationController`와 기능이 완전히 겹치는 데다, 씬/프리팹 어디에도 실제로 붙어있지 않았음(스크립트 GUID로 프로젝트 전체 검색해 확인) — 죽은 코드였으므로 유지할 이유 없음.
+
+### 교훈
+같은 역할(볼륨 설정)을 하는 스크립트가 두 번 따로 작성되면 이런 "둘 다 있지만 실제로 쓰이는 건 하나뿐이고 그게 하필 미완성"인 상황이 생길 수 있음 — 다른 주체(사람이든 AI든)가 UI를 붙일 때는 기존에 이미 있는 매니저/서비스가 있는지 먼저 확인하고 거기 위임하는 게 안전.
+
+---
+
+## 타워 설치/철거 사운드 추가 (2026-07-06)
+`SoundManager`에 `towerBuildClip`/`towerDemolishClip` + `PlayTowerBuild()`/`PlayTowerDemolish()` 추가. `TowerBuildController.HandleBuildClick()`은 `mapManager.Build()` 성공 직후, `HandleDemolishClick()`은 `mapManager.RemoveTower()` 성공 직후에만 각각 호출 — 슬롯 부족/골드 부족으로 실패하는 경로에서는 호출되지 않음(실패는 오퍼레이터 대사 쪽 책임).
+
+### 씬 세팅 필요
+- 게임 씬 `SoundManager`의 `Tower Build Clip`/`Tower Demolish Clip` 필드에 각각 음원 연결.
+
+---
+
+## 타이틀 Configuration 화면: 해상도 변경 실제 구현 (2026-07-06)
+{{user}} 결정: 코덱스가 만든 `TitleConfigurationController.PreviousResolution()`/`NextResolution()`이 라벨만 새로고침하고 실제로 아무 동작도 안 하는 빈 껍데기였음(당장은 손대지 말라고 지시했었는데, 최종 빌드 전 시간이 남아 마저 구현하기로 함).
+
+### 구현
+- `BuildResolutionList()`(신규): `Screen.resolutions`에서 너비×높이 기준으로만 중복 제거한 목록 생성 (갱신주파수별 중복 항목 제거 목적). 목록이 비면(이론상 발생 안 하지만 방어적으로) 현재 `Screen.width/height` 하나만 넣음.
+- `LoadSettings()`: 저장된 해상도(`Settings.ResolutionWidth/Height`)를 목록에서 찾아 `pendingResolutionIndex` 복원, 없으면(다른 모니터에서 저장된 값 등) 목록의 마지막(가장 높은 해상도, 보통 네이티브)으로 대체.
+- `PreviousResolution()`/`NextResolution()`: 이제 `pendingResolutionIndex`를 목록 범위 안에서 실제로 -1/+1 이동.
+- `RefreshLabels()`의 해상도 텍스트: `Screen.width/height`(현재 실제 해상도) 대신 `availableResolutions[pendingResolutionIndex]`(대기 중인 선택값)을 표시하도록 변경 — Apply 전에도 버튼 클릭에 따라 미리보기 텍스트가 바뀌어야 하므로.
+- `Apply()`: `Screen.fullScreenMode`/`Screen.fullScreen`을 따로 설정하던 걸 `Screen.SetResolution(width, height, fullScreenMode)` 한 번 호출로 교체 — 해상도와 창모드를 동시에 안 넘기면 창모드 전환 시 해상도가 안 맞아 화면이 어긋나는 경우가 있어(유니티 공식 권장 방식이 이 조합 호출), 겸사겸사 정리. 선택한 해상도도 `Settings.ResolutionWidth/Height` 키로 같이 저장.
+
+### 씬 세팅 필요 없음
+기존에 이미 배선된 `PreviousResolution`/`NextResolution` 버튼 OnClick 그대로 재사용 — 스크립트 로직만 채운 것이라 인스펙터 작업 불필요.
 
 ---
 

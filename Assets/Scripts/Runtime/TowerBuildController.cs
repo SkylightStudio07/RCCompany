@@ -174,6 +174,11 @@ namespace RCCom.Runtime
 
             mapManager.Build(definition, cell);
             Debug.Log($"[Build] {definition.Data.displayName} 건설 완료 (셀 {cell})");
+
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlayTowerBuild();
+            }
         }
 
         /// <summary>
@@ -200,6 +205,11 @@ namespace RCCom.Runtime
             string demolishedName = instance.Data.displayName;
             mapManager.RemoveTower(cell);
             Debug.Log($"[Demolish] {demolishedName} 철거 완료 (셀 {cell}, 비용 {cost})");
+
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlayTowerDemolish();
+            }
         }
 
         private bool TryGetClickedCell(out Vector3Int cell)

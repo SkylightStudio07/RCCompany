@@ -1,3 +1,4 @@
+using RCCom.Managers;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -94,6 +95,11 @@ namespace RCCom.UI
 
         private void InvokeAction()
         {
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlayMainMenuClick();
+            }
+
             switch (action)
             {
                 case MenuAction.NewGame:

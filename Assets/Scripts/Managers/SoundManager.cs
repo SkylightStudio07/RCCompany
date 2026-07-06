@@ -36,6 +36,8 @@ namespace RCCom.Managers
         [SerializeField] private AudioClip playerAttackClip;
         [SerializeField] private AudioClip skillClip;
         [SerializeField] private AudioClip buttonClickClip;
+        [SerializeField] private AudioClip towerBuildClip;
+        [SerializeField] private AudioClip towerDemolishClip;
 
         [Header("타이틀 씬 전용 클립")]
         [SerializeField] private AudioClip titleClickClip;
@@ -187,6 +189,10 @@ namespace RCCom.Managers
         public void PlaySkill() => PlayEffect(skillClip);
 
         public void PlayButtonClick() => PlayEffect(buttonClickClip);
+
+        public void PlayTowerBuild() => PlayEffect(towerBuildClip);
+
+        public void PlayTowerDemolish() => PlayEffect(towerDemolishClip);
 
         public void PlayTitleClick() => PlayEffect(titleClickClip);
 
